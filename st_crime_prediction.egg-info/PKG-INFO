@@ -1,0 +1,11 @@
+Metadata-Version: 1.2
+Name: st-crime-prediction
+Version: 1.0
+Summary: Spatio-temporal crime prediction
+Home-page: https://github.com/computergraphicsforall/st_crime_prediction
+Author: Miguel Barrero, Jorge Victorino
+Author-email: mbarrerop@gmail.com
+License: UNKNOWN
+Description: UNKNOWN
+Platform: UNKNOWN
+Requires-Python: >=3.8
