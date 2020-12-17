@@ -28,8 +28,10 @@ def get_statistics(ffd, fip, ffp, fie, dpt, dpe, dt):
 
         if len(dpt) and len(dpe) > 1:
             r = stats.pearsonr(dt['EVENTS'][fi:ff], dpe.iloc[:, 0])
+            r = np.round(r[0], 2)
         else:
             r = None
+
         mobs = dt['EVENTS'][fie:ffp].mean()
         stdobs = dt['EVENTS'][fie:ffp].std()
         mfcast = dpe.iloc[:, 0].mean()
@@ -46,8 +48,8 @@ def get_statistics(ffd, fip, ffp, fie, dpt, dpe, dt):
                        std_obsertions=np.round(stdobs, 2),
                        mean_forecast=np.round(mfcast, 2),
                        std_forecast=np.round(stdfcast, 2),
-                       rmsn=rmsn,
-                       pearson_cor=np.round(r[0], 2),
+                       rmsn=np.round(rmsn, 2),
+                       pearson_cor=r,
                        mean_error_fcast=np.round(m_error_fcast, 2),
                        std_error_fcast=np.round(std_error_fcast, 2),
                        interval_error=str(np.round(mobs, 2)) + ' +- ' + str(np.round(std_error_fcast, 2)),
