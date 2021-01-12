@@ -230,3 +230,58 @@ def daily_forecast(fid, ffd, fie, ffe, dfn, bwt, lon, lat, n_days=1, graphics=Fa
             fig = fplots.forecast_graphs(d_dct, d_dce, ptd, ped, decd, ffe, fip1, 'Daily ' + str(bwt), False)
 
     return stats_fcast, fig
+
+
+def next_day_continous_forecast(x_points, y_points, sdt, edt, data, period=None):
+
+    stats_fcast, fig = list(), None
+    pred = False
+    matrix_fcast = np.zeros((len(y_points), len(x_points)))
+    matrix_obser = np.zeros((len(y_points), len(x_points)))
+
+    fli = pd.to_datetime('2014')   # fecha límite inicial
+    flf = pd.to_datetime('2020')  # fecha límite final
+    fid = pd.to_datetime(data.index[0])
+    ffd = pd.to_datetime(data.index[-1])
+    fie = pd.to_datetime(sdt)
+    ffe = pd.to_datetime(edt)
+
+    if (fid >= fli and ffd < flf) and (fie >= fid and ffe <= ffd):
+        pred = True
+
+    if pred:
+
+        if fid.dayofweek != 0:
+            dias = fid.dayofweek
+            fid = fid - pd.DateOffset(days=dias)
+
+        if pd.to_datetime(ffd).dayofweek != 0:
+            dias = ffd.dayofweek
+            ffd = ffd - pd.DateOffset(days=dias)
+
+        # forecast period
+        fip1 = pd.to_datetime(ffe) + pd.DateOffset(days=1)
+        ffp1 = pd.to_datetime(fip1) + pd.DateOffset(days=1 - 1)
+        fip1_str = fip1.strftime("%Y-%m-%d")
+
+        if period is None:
+            period = 28
+
+        cols = data.columns
+        # data trainining between dates
+        d_dce = data[fie:ffe]
+
+        for i in range(len(cols)):
+
+            cx = cols[i][0]
+            cy = cols[i][1]
+
+            decd = decompose(d_dce[cx, cy], period=period)                # seasonal decompose
+            ptd = forecast(decd, steps=1, fc_func=drift)                  # trend forecast
+            ped = forecast(decd, steps=1, fc_func=drift, seasonal=True)   # seasonal forecast
+
+            if float(ped['drift+seasonal']) > 0:
+                matrix_fcast[cy][cx] = float(ped['drift+seasonal'])
+
+            matrix_obser[cy][cx] = data.loc[fip1_str][cx, cy]
+        return matrix_fcast, matrix_obser

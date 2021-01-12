@@ -28,6 +28,7 @@ def data_crime_transform(df):
     dfo['ESDIA'] = [0 if (x == 0 or x == 3) else 1 for x in dfo['JORN']]
     dfo['NSEM'] = pd.to_datetime(dfo['FECHA']).dt.week
     dfo['FSEM'] = [0 if x < 4 else 1 for x in dfo['DSEM']]
+    dfo['NUM'] = np.ones(len(dfo), dtype=np.int64)
 
     return dfo
 
@@ -318,3 +319,27 @@ def data_series(fi, ff, df, tp, ds, jd):
                     if not d.empty:
                         dfo['EVENTS'].iloc[i] = int(d['UPZ'])
                 return dfo
+
+
+def time_series_full_city(data, t_serie, start_date, end_date, bandwidth):
+
+    start_date = pd.to_datetime(start_date)
+    end_date = pd.to_datetime(end_date) + pd.DateOffset(days=1)
+    col_x = 'CX_' + str(bandwidth)
+    col_y = 'CY_' + str(bandwidth)
+    if t_serie == 'daily':
+
+        serie = ['ANIO', 'MES', 'DIA']
+        d_out = pd.pivot_table(data, values='NUM', columns=[col_x, col_y], index=serie,
+                               fill_value=0, aggfunc=np.sum)
+
+        if (end_date - start_date).days == len(d_out):
+
+            index_time = pd.date_range(start_date, end_date, freq='D', closed='left')
+            d_out = d_out.reset_index()
+            d_out.index = index_time
+            d_out = d_out[d_out.columns[len(serie):]]
+            return d_out
+        else:
+            print('programar la validación')
+            return None

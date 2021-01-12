@@ -3,6 +3,7 @@ import numpy as np
 import plotly.graph_objects as go
 import json
 
+
 def bw_intervals(mts, long, lat):
     """
     Function to obtain the intervals in latitude and longitude for crime prediction
@@ -79,8 +80,28 @@ def get_degrees(mts, lat, t):
     return deg
 
 
-def grid_forecast(data, bandwith=500, c_points=False, token_mapbox=None, figure=False):
-    x, y, xp, yp = None, None, None, None
+def index_centroids_incidents_by_mesh(data, mesh, bandwidth):
+
+    x, y = mesh
+    title_x = 'CX_' + str(bandwidth)
+    title_y = 'CY_' + str(bandwidth)
+    pi_x = x[0]                      # starting point at x of the mesh
+    pi_y = y[0]                      # starting point at y of the mesh
+    dis_x = abs(x[0] - x[-1])        # maximum distance between start and end point in x
+    dis_y = abs(y[0] - y[-1])        # maximum distance between start and end point in y
+    max_index_x = len(x) - 1         # maximum centroid index in x
+    max_index_y = len(y) - 1         # maximum centroid index in y
+
+    data[title_x] = np.floor((abs(pi_x - data.LONGITUD) * max_index_x) / dis_x)
+    data[title_y] = np.floor((abs(pi_y - data.LATITUD) * max_index_y) / dis_y)
+    data[title_x] = data[title_x].astype(int)
+    data[title_y] = data[title_y].astype(int)
+
+    return data
+
+
+def grid_forecast(data, bandwidth=500, c_points=False, token_mapbox=None, figure=False):
+    x, y, xp, yp, lcl = None, None, None, None, None
     # constants
     add_mts = 2 / 111.32
     min_lat = 4.38981655133336
@@ -94,8 +115,8 @@ def grid_forecast(data, bandwith=500, c_points=False, token_mapbox=None, figure=
     dis_lon = distance_points(min_lat, min_lon, min_lat, max_lon)
 
     # calculate in degrees the distance between points
-    step_x = get_degrees(bandwith, min_lat, 'lat')
-    step_y = get_degrees(bandwith, min_lat, 'lon')
+    step_x = get_degrees(bandwidth, min_lat, 'lat')
+    step_y = get_degrees(bandwidth, min_lat, 'lon')
 
     # generate the x and y values to the grid
     x = np.arange(min_lon, max_lon, step_x)
@@ -114,7 +135,76 @@ def grid_forecast(data, bandwith=500, c_points=False, token_mapbox=None, figure=
 
     if figure:
         with open('../data/lcl.geojson') as f:
-        lcl = json.load(f)
+            lcl = json.load(f)
+        if token_mapbox is None:
+            token_mapbox = 'pk.eyJ1IjoibWJhcnJlcm9wIiwiYSI6ImNrN28zZjczbTA0ZWwzaXF3aDAxcHl1dGkifQ.DlJqaPP1eC7PF_y-bbWjeg'
+        fig = go.Figure()
+        for j in range(len(y)):
+            fig.add_trace(go.Scattermapbox(mode="markers+lines", lon=x1[0],
+                                           lat=y1[j], line={'color': 'rgba(255, 255, 255, 0.71)'},
+                                           marker={'size': 10, 'color': 'rgba(203, 255, 92, 0.71)'},
+                                           showlegend=False))
+        for i in range(len(x)):
+            fig.add_trace(go.Scattermapbox(mode="markers+lines",
+                                           lon=x1.T[i], lat=y1.T[0],
+                                           line={'color': 'rgba(255, 255, 255, 0.71)'},
+                                           marker={'size': 10, 'color': 'rgba(203, 255, 92, 0.71)'},
+                                           showlegend=False))
+        if c_points:
+            for j in range(len(yp)):
+                fig.add_trace(go.Scattermapbox(mode="markers+lines",
+                                               lon=x2[0], lat=y2[j],
+                                               marker={'size': 10, 'color': 'red'},
+                                               showlegend=False))
+            for i in range(len(xp)):
+                fig.add_trace(go.Scattermapbox(mode="markers+lines",
+                                               lon=x2.T[i], lat=y2.T[0],
+                                               marker={'size': 10, 'color': 'red'},
+                                               showlegend=False))
+
+            fig.update_layout(mapbox={'style': "dark", 'accesstoken': token_mapbox,
+                                      'center': {'lon': -74.081749, 'lat': 4.6097102},
+                                      'zoom': 7, 'layers': [{'source': lcl, 'type': "fill", 'below': "traces",
+                                                             'color': "rgba(92, 214, 255, 0.5)"}]},
+                              margin={'l': 0, 'r': 0, 'b': 0, 't': 0})
+
+        fig.show()
+    return (x, y), (xp, yp)
+
+
+def grid_forecast_opencp(mesh_open_cp, bandwidth=500, c_points=False, token_mapbox=None, figure=False):
+    x, y, xp, yp, lcl = None, None, None, None, None
+    # constants
+    add_mts = 2 / 111.32
+    min_lat = mesh_open_cp[1].min()
+    max_lat = mesh_open_cp[1].max()
+    min_lon = mesh_open_cp[0].min()
+    max_lon = mesh_open_cp[0].max()
+
+    # calculate the distance between the min and max
+    dis_lat = distance_points(min_lat, min_lon, max_lat, min_lon)
+    dis_lon = distance_points(min_lat, min_lon, min_lat, max_lon)
+
+    # calculate in degrees the distance between points
+    step_x = get_degrees(bandwidth, min_lat, 'lat')
+    step_y = get_degrees(bandwidth, min_lat, 'lon')
+    # generate the x and y values to the grid
+    x = mesh_open_cp[0]
+    y = mesh_open_cp[1]
+    x1, y1 = np.meshgrid(mesh_open_cp[0], mesh_open_cp[1])
+
+    if c_points:
+        min_xp = min_lon + (step_y / 2)
+        min_yp = min_lat + (step_y / 2)
+        max_xp = max_lon + (step_y / 2)
+        max_yp = max_lat - (step_y / 2)
+        xp = np.arange(min_xp, max_xp, step_y)
+        yp = np.arange(min_yp, max_yp + (step_y / 2), step_y)
+        x2, y2 = np.meshgrid(xp, yp)
+
+    if figure:
+        with open('../data/lcl.geojson') as f:
+            lcl = json.load(f)
         if token_mapbox is None:
             token_mapbox = 'pk.eyJ1IjoibWJhcnJlcm9wIiwiYSI6ImNrN28zZjczbTA0ZWwzaXF3aDAxcHl1dGkifQ.DlJqaPP1eC7PF_y-bbWjeg'
         fig = go.Figure()
