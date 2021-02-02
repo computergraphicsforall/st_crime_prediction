@@ -197,32 +197,30 @@ def data_series(fi, ff, df, tp, ds, jd):
                         dfo['EVENTS'].iloc[i] = int(d['UPZ'])
                 return dfo
 
-        if tp == 5 and jd is not None:
+        if tp == 5:
 
-            if 0 <= jd <= 3:
-                index = pd.date_range(start=fi, end=ff, freq='6H',
-                                      closed="left")
-                serie = ['ANIO', 'MES', 'NSEM', 'DSEM', 'JORN']
-                # preparando dataframe de salida
-                data = {'ANIO': pd.to_datetime(index).year.tolist(),
-                        'MES': pd.to_datetime(index).month.tolist(),
-                        'NSEM': pd.to_datetime(index).week.tolist(),
-                        'DSEM': pd.to_datetime(index).dayofweek.tolist(),
-                        'JORN': pd.to_datetime(index).hour // 6,
-                        'EVENTS': np.zeros(len(index), dtype=int)}
-                dfo = pd.DataFrame(index=index, data=data)
-                dfi = pd.DataFrame(df.groupby(serie)['UPZ'].count()).reset_index()
+            index = pd.date_range(start=fi, end=ff, freq='6H', closed="left")
+            serie = ['ANIO', 'MES', 'NSEM', 'DSEM', 'JORN']
+            # preparando dataframe de salida
+            data = {'ANIO': pd.to_datetime(index).year.tolist(),
+                    'MES': pd.to_datetime(index).month.tolist(),
+                    'NSEM': pd.to_datetime(index).week.tolist(),
+                    'DSEM': pd.to_datetime(index).dayofweek.tolist(),
+                    'JORN': pd.to_datetime(index).hour // 6,
+                    'EVENTS': np.zeros(len(index), dtype=int)}
+            dfo = pd.DataFrame(index=index, data=data)
+            dfi = pd.DataFrame(df.groupby(serie)['UPZ'].count()).reset_index()
 
-                for i in range(len(dfo)):
-                    d = dfi[(dfi['ANIO'] == (dfo['ANIO'].iloc[i])) &
-                            (dfi['MES'] == dfo['MES'].iloc[i]) &
-                            (dfi['NSEM'] == dfo['NSEM'].iloc[i]) &
-                            (dfi['DSEM'] == dfo['DSEM'].iloc[i]) &
-                            (dfi['JORN'] == dfo['JORN'].iloc[i])]
+            for i in range(len(dfo)):
+                d = dfi[(dfi['ANIO'] == (dfo['ANIO'].iloc[i])) &
+                        (dfi['MES'] == dfo['MES'].iloc[i]) &
+                        (dfi['NSEM'] == dfo['NSEM'].iloc[i]) &
+                        (dfi['DSEM'] == dfo['DSEM'].iloc[i]) &
+                        (dfi['JORN'] == dfo['JORN'].iloc[i])]
 
-                    if not d.empty:
-                        dfo['EVENTS'].iloc[i] = int(d['UPZ'])
-                return dfo
+                if not d.empty:
+                    dfo['EVENTS'].iloc[i] = int(d['UPZ'])
+            return dfo
 
         if tp == 6:
 
@@ -260,7 +258,7 @@ def data_series(fi, ff, df, tp, ds, jd):
                     dfo['EVENTS'].iloc[i] = dfi['UPZ'].iloc[i]
             return dfo
 
-        if tp == 8 and ds is not None and jd is not None:
+        if tp == 8 and ds is not None:
 
             if 0 <= ds <= 6:
 
@@ -327,19 +325,106 @@ def time_series_full_city(data, t_serie, start_date, end_date, bandwidth):
     end_date = pd.to_datetime(end_date) + pd.DateOffset(days=1)
     col_x = 'CX_' + str(bandwidth)
     col_y = 'CY_' + str(bandwidth)
+
     if t_serie == 'daily':
 
         serie = ['ANIO', 'MES', 'DIA']
-        d_out = pd.pivot_table(data, values='NUM', columns=[col_x, col_y], index=serie,
-                               fill_value=0, aggfunc=np.sum)
+        data_out = pd.pivot_table(data, values='NUM', columns=[col_x, col_y], index=serie, fill_value=0, aggfunc=np.sum)
 
-        if (end_date - start_date).days == len(d_out):
+        if (end_date - start_date).days == len(data_out):
 
             index_time = pd.date_range(start_date, end_date, freq='D', closed='left')
-            d_out = d_out.reset_index()
-            d_out.index = index_time
-            d_out = d_out[d_out.columns[len(serie):]]
-            return d_out
+            data_out = data_out.reset_index()
+            data_out.index = index_time
+            data_out = data_out[data_out.columns[len(serie):]]
+            return data_out
         else:
             print('programar la validación')
             return None
+
+
+def filtering_data_by_point(data, bandwidth, point_lon, point_lat):
+
+    bwlong, bwlat = st.bw_intervals(bandwidth, point_lon, point_lat)
+    data_out = data[((data['LATITUD'] >= bwlat[0]) & (data['LATITUD'] <= bwlat[1])) &
+                 ((data['LONGITUD'] >= bwlong[0]) & (data['LONGITUD'] <= bwlong[1]))]
+    return data_out
+
+
+def time_series_by_point(data, t_serie, start_data_date, end_data_date, weekday=None, period_day=None):
+
+    serie = []
+    days = ['W-MON', 'W-TUE', 'W-WED', 'W-THU', 'W-FRI', 'W-SAT', 'W-SUN']
+    make_serie = False
+
+    if t_serie == 'monthly':
+        serie = ['ANIO', 'MES']
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq='M')
+        tp = 0
+        make_serie = True
+
+    elif t_serie == 'weekly':
+        serie = ['PSEM']
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq='W', closed="left")
+        tp = 1
+        make_serie = True
+
+    elif t_serie == 'daily':
+        serie = ['ANIO', 'MES', 'DIA']
+        end_data_date = pd.to_datetime(end_data_date) + pd.DateOffset(days=1)
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq='D', closed="left")
+        tp = 2
+        make_serie = True
+
+    elif t_serie == 'weekday' and 0 <= weekday < 7:
+        serie = ['ANIO', 'MES', 'NSEM', 'DSEM']
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq=days[weekday], closed="left")
+        tp = 3
+        make_serie = True
+
+    elif t_serie == 'weekday-period-day' and weekday is not None and period_day is not None:
+        serie = ['ANIO', 'MES', 'NSEM', 'DSEM', 'JORN']
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq=days[weekday], closed="left")
+        index = index + pd.DateOffset(hours=period_day * 6)
+        tp = 4
+        make_serie = True
+
+    elif t_serie == 'full-turny-day' and weekday is None and period_day is None:
+        serie = ['ANIO', 'MES', 'NSEM', 'DSEM', 'JORN']
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq='6H', closed="left")
+        tp = 5
+        make_serie = True
+
+    elif t_serie == 'weekday-full-turny' and 0 <= weekday < 7:
+        serie = ['ANIO', 'MES', 'NSEM', 'DSEM', 'JORN']
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq='6H', closed="left").strftime('%Y-%m-%d %H:%M:%S')
+        index = index[pd.to_datetime(index).dayofweek == weekday]
+        tp = 8
+        make_serie = True
+
+    elif t_serie == 'fulldays-one-turny' and 0 <= period_day < 4:
+        serie = ['ANIO', 'MES', 'NSEM', 'DSEM', 'JORN']
+        index = pd.date_range(start=start_data_date, end=end_data_date, freq='D', closed="left")
+        index = index + pd.DateOffset(hours=period_day * 6)
+        tp = 9
+        make_serie = True
+
+    if make_serie:
+
+        pivot = pd.pivot_table(data, values='NUM', columns='COD_UPZ', index=serie,
+                               fill_value=0, aggfunc=np.sum, margins=True, margins_name='EVENTS')[:-1]
+
+        if len(pivot) == len(index):
+            pivot = pivot.reset_index()
+            pivot.index = index
+            pivot.columns.name = ''
+            serie.append('EVENTS')
+            pivot = pivot[serie]
+            return pivot
+        else:
+            d_out = data_series(start_data_date, end_data_date, data, tp, weekday, period_day)
+            return d_out
+
+    else:
+        print('Please validate the configuration of time series in the function documentation')
+        return None
